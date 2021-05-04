@@ -1,0 +1,5 @@
+dill
+tqdm
+pandas
+beautifulsoup4
+requests
