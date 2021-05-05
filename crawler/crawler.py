@@ -53,10 +53,27 @@ class MainNewsCrawler:
         self.news_data = []
 
     def crawl_news(self) -> List[Dict]:
+        """
+        Crawl News method
+        =================
+
+        Returns
+        -------
+        news_data: list of dict
+            [{'press': press(str),
+            'date': publish date(str),
+            'time': publish time(str),
+            'title': news title(str),
+            'link': news url(str),
+            'text': origin text(str),
+            'cleaned_text': cleaned text(str)},...]
+        """
         self.date_list = self._date_range(self.start_date, self.end_date)
 
         cnt = 1
-        for idx, date in enumerate(tqdm(self.date_list), start=1):
+        progress_bar = tqdm(self.date_list)
+        for idx, date in enumerate(progress_bar, start=1):
+            progress_bar.set_description(f"Crawling {date}")
             page_links = self.get_page_links(date)
             data = self.get_metadata(page_links)
             for news in data:
