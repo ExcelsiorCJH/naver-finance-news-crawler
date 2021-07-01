@@ -6,10 +6,11 @@ import dill
 import requests
 
 from datetime import datetime, timedelta
-from typing import List, Dict
+from typing import List, Dict, Union
 
 from bs4 import BeautifulSoup
 from bs4.element import NavigableString
+from kss import split_sentences
 
 from tqdm import tqdm
 from .utils import clean_text
@@ -45,32 +46,33 @@ class MainNewsCrawler:
         self.start_date = start_date
         self.end_date = end_date
         self.save_dir = save_dir
+
+        # directory check
+        if not os.path.exists(save_dir):
+            os.mkdir(save_dir)
+
         if stopwords:
             self.stopwords = stopwords
         else:
-            self.stopwords = ["무단", "재배포", "배포", "article_split"]
+            self.stopwords = [
+                "기자",
+                "특파원",
+                "무단",
+                "저작권",
+                "저작권자",
+                "배포",
+                "재배포",
+                "article_split",
+            ]
 
+        self.total_news_data = []
         self.news_data = []
 
     def crawl_news(self) -> List[Dict]:
-        """
-        Crawl News method
-        =================
-
-        Returns
-        -------
-        news_data: list of dict
-            [{'press': press(str),
-            'date': publish date(str),
-            'time': publish time(str),
-            'title': news title(str),
-            'link': news url(str),
-            'text': origin text(str),
-            'cleaned_text': cleaned text(str)},...]
-        """
         self.date_list = self._date_range(self.start_date, self.end_date)
 
-        cnt = 1
+        # cnt = 1
+        crawl_range = []
         progress_bar = tqdm(self.date_list)
         for idx, date in enumerate(progress_bar, start=1):
             progress_bar.set_description(f"Crawling {date}")
@@ -81,29 +83,35 @@ class MainNewsCrawler:
                 text, cleaned_text = self.get_article(url)
                 news["text"] = text
                 news["cleaned_text"] = cleaned_text
-                time.sleep(random.uniform(0.2, 0.8))
+                time.sleep(random.uniform(0.2, 0.6))
 
             self.news_data.extend(data)
-
+            crawl_range.append(date)
             if self.save_dir:
-                if idx % 7 == 0:
-                    save_path = os.path.join(self.save_dir, f"news_data_{cnt}.pkl")
+                if idx % 14 == 0:
+                    start, end = crawl_range[0], crawl_range[-1]
+                    save_path = os.path.join(self.save_dir, f"news_data_{end}__{start}.pkl")
                     with open(save_path, "wb") as f:
                         dill.dump(self.news_data, f)
 
-                    cnt += 1
+                    # cnt += 1
+                    self.total_news_data.extend(self.news_data)
                     self.news_data.clear()
+                    crawl_range.clear()
 
                 if idx % 7 != 0 and idx == len(self.date_list):
-                    save_path = os.path.join(self.save_dir, f"news_data_{cnt}_last.pkl")
+                    start, end = crawl_range[0], crawl_range[-1]
+                    save_path = os.path.join(self.save_dir, f"news_data_{end}__{start}.pkl")
                     with open(save_path, "wb") as f:
                         dill.dump(self.news_data, f)
+                    self.total_news_data.extend(self.news_data)
                     self.news_data.clear()
+                    crawl_range.clear()
 
             time.sleep(random.uniform(0.5, 0.9))
-        return self.news_data
+        return self.total_news_data
 
-    def get_article(self, url: str) -> str:
+    def get_article(self, url: str) -> Union[str, List[str]]:
         """
         Get Article method
         ==================
@@ -118,24 +126,29 @@ class MainNewsCrawler:
         -------
         text: str
             original article text
-        cleaned_text: str
-            cleaned article text
+        cleaned_sentences: list of str
+            cleaned article sentences
         """
         req = requests.get(url)
         soup = BeautifulSoup(req.text, "html.parser")
 
         sents = soup.find("div", {"class": "articleCont"})
-        sents = [sent for sent in sents if isinstance(sent, NavigableString)]
+        if sents:
+            sents = [sent for sent in sents if isinstance(sent, NavigableString)]
+        else:
+            sents = []
 
         origin_text = "".join(sents)
 
-        if self.stopwords:
-            sents = [sent for sent in sents if not any(word in sent for word in self.stopwords)]
-
         text = "".join(sents)
-        cleaned_text = clean_text(text)
+        sentences = split_sentences(text)
+        cleaned_sentences = [clean_text(sent) for sent in sentences]
+        cleaned_sentences = [sent for sent in cleaned_sentences if sent]
+        cleaned_sentences = [
+            sent for sent in cleaned_sentences if not any(word in sent for word in self.stopwords)
+        ]
 
-        return origin_text, cleaned_text
+        return origin_text, cleaned_sentences
 
     def get_metadata(self, url_list: List[str]) -> List[Dict]:
         """
@@ -175,9 +188,13 @@ class MainNewsCrawler:
             news_links = news_links.find_all("a")
             news_titles = [link.text for link in news_links if link.text]
             news_links = [link["href"] for link in news_links]
+            news_urls = []
+            for news_link in news_links:
+                if news_link not in news_urls:
+                    news_urls.append(news_link)
 
             for press, p_datetime, title, link in zip(
-                press_list, p_datetime_list, news_titles, news_links
+                press_list, p_datetime_list, news_titles, news_urls
             ):
                 p_date, p_time = p_datetime.split()
                 meta_dict = {

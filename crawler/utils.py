@@ -41,4 +41,7 @@ def clean_text(text):
     text = re.sub(r"[◇#/▶▲◆■●△①②③★○◎▽=▷☞◀ⓒ□?㈜♠☎]", "", text)
     # 따옴표 제거
     text = re.sub(r"[\"'”“‘’]", "", text)
+
+    # 한글과 띄어쓰기, 특수기호 일부를 제외한 모든 글자
+    text = re.sub("[^ .?!/@$%~|0-9|ㄱ-ㅣ가-힣]+", "", text)
     return text.strip()
