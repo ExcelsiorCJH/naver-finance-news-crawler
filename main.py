@@ -8,7 +8,7 @@ parser = argparse.ArgumentParser(description="Naver Finance News Crawler")
 # mode ["main-news", "item-news"]
 parser.add_argument("--mode", type=str, default="main-news", help="select the mode to use")
 # periods
-parser.add_argument("--start-date", type=str, default="2021-06-30", help="start date, YYYY-mm-dd")
+parser.add_argument("--start-date", type=str, default="2019-01-01", help="start date, YYYY-mm-dd")
 parser.add_argument("--end-date", type=str, default=None, help="end date, YYYY-mm-dd")
 # save directory
 parser.add_argument("--save-dir", type=str, default="data/")
