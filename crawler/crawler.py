@@ -4,6 +4,7 @@ import time
 import random
 import dill
 import requests
+import urllib
 
 from datetime import datetime, timedelta
 from typing import List, Dict, Union
@@ -14,6 +15,77 @@ from kss import split_sentences
 
 from tqdm import tqdm
 from .utils import clean_text
+
+
+class QueryNewsCrawler:
+    def __init__(self):
+        # 네이버 뉴스의 경우 page가 아닌
+        # 뉴스 기사 개수 카운팅으로 보여주고 있음
+        # 1 ~ 4000개까지 10개 단위로 보여줌
+        self.main_url = "https://search.naver.com/search.naver"
+        self.query_url = "?where=news&sm=tab_pge&query="
+        self.page_url = (
+            "&sort=0&photo=0&field=0&pd=0&ds=&de=&cluster_rank=23&mynews=0&office_type=0&"
+        )
+        self.page_url += "office_section_code=0&news_office_checked=&nso=so:r,p:all,a:all&start="
+
+    def crawl_news_by_query(self, query: str, count: int = 200) -> List[Dict]:
+        """
+        검색어(query)에 따른 뉴스 크롤링 메서드
+        =====================================
+
+        Arguments
+        ---------
+        query: str
+            크롤링 하고자 하는 뉴스 검색어
+        count: int, default is 200
+            가져오고자 하는 뉴스 개수 (10 단위씩 설정해줘야 함)
+
+        Returns
+        -------
+        news_data: List[Dict]
+            [{'href': press(str), # 뉴스 링크
+            'title': publish date(str), # 뉴스 제목
+            'text': publish time(str), # 뉴스 기사(줄임말)
+            'thumb': news title(str)} # 썸네일
+            ,...]
+        """
+        self.query = query
+        parsed_query = urllib.parse.quote(query)
+
+        if count:
+            start_range = list(range(1, count, 10))
+        else:
+            start_range = list(range(1, 4000, 10))
+
+        news_data = []
+        for s_idx in tqdm(start_range):
+            url = f"{self.main_url}{self.query_url}{parsed_query}{self.page_url}{s_idx}"
+
+            # request and soup
+            req = requests.get(url)
+            soup = BeautifulSoup(req.text, "html.parser")
+
+            # ul lists and li lists
+            ul_lists = soup.find("ul", {"class": "list_news"})
+            li_lists = ul_lists.findChildren("li", {"class": "bx"})
+            for li in li_lists:
+                # news link & title
+                link = li.find("a", {"class": "news_tit"})
+                href, title = link["href"], link["title"]
+                # news text
+                text = li.find("a", {"class": "api_txt_lines dsc_txt_wrap"}).text
+                # thumb nail if exist
+                thumb = ""
+                thumb_link = li.find("img", {"class": "thumb api_get"})
+                if thumb_link:
+                    thumb = thumb_link["src"]
+
+                # update link_title_dict
+                news_data.append({"href": href, "title": title, "text": text, "thumb": thumb})
+            time.sleep(random.uniform(0.6, 0.9))
+
+        return news_data
 
 
 class MainNewsCrawler:
