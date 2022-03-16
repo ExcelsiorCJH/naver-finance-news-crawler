@@ -44,10 +44,10 @@ class QueryNewsCrawler:
         Returns
         -------
         news_data: List[Dict]
-            [{'href': press(str), # 뉴스 링크
-            'title': publish date(str), # 뉴스 제목
-            'text': publish time(str), # 뉴스 기사(줄임말)
-            'thumb': news title(str)} # 썸네일
+            [{'href': str, # 뉴스 링크
+            'title': str, # 뉴스 제목
+            'text': str, # 뉴스 기사(줄임말)
+            'thumb': str} # 썸네일
             ,...]
         """
         self.query = query
