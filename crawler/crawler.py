@@ -5,10 +5,12 @@ import random
 import dill
 import requests
 import urllib
+import bs4
 
 from datetime import datetime, timedelta
 from typing import List, Dict, Union
 
+from newspaper import Article
 from bs4 import BeautifulSoup
 from bs4.element import NavigableString
 from kss import split_sentences
@@ -50,6 +52,8 @@ class QueryNewsCrawler:
             'thumb': str} # 썸네일
             ,...]
         """
+
+        # TODO: publish time 추가하기
         self.query = query
         parsed_query = urllib.parse.quote(query)
 
@@ -73,6 +77,8 @@ class QueryNewsCrawler:
                 # news link & title
                 link = li.find("a", {"class": "news_tit"})
                 href, title = link["href"], link["title"]
+                # publish date
+                publish_date = self._get_datetime(href, li)
                 # news text
                 text = li.find("a", {"class": "api_txt_lines dsc_txt_wrap"}).text
                 # thumb nail if exist
@@ -82,10 +88,44 @@ class QueryNewsCrawler:
                     thumb = thumb_link["src"]
 
                 # update link_title_dict
-                news_data.append({"href": href, "title": title, "text": text, "thumb": thumb})
+                news_data.append(
+                    {
+                        "href": href,
+                        "date": publish_date,
+                        "title": title,
+                        "text": text,
+                        "thumb": thumb,
+                    }
+                )
             time.sleep(random.uniform(0.6, 0.9))
 
         return news_data
+
+    def _get_datetime(self, href: str, li: bs4.element.Tag):
+        try:
+            a = Article(href, language="ko")
+            a.download()
+            a.parse()
+            publish_date = a.publish_date
+        except:
+            publish_date = None
+
+        if publish_date is None:
+            date = li.find("span", {"class": "info"}).text
+            date = date.split()[0]
+
+            if "분" in date:
+                minutes = re.sub(r"[^\d+]", "", date)
+                publish_date = datetime.now() - timedelta(minutes=int(minutes))
+            elif "시간" in date:
+                hours = re.sub(r"[^\d+]", "", date)
+                publish_date = datetime.now() - timedelta(hours=int(hours))
+            elif "일" in date:
+                days = re.sub(r"[^\d+]", "", date)
+                publish_date = datetime.now() - timedelta(days=int(days))
+            else:
+                publish_date = datetime.strptime(date, "%Y.%m.%d.")
+        return publish_date
 
 
 class MainNewsCrawler:
