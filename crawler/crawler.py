@@ -6,6 +6,7 @@ import dill
 import requests
 import urllib
 import bs4
+import newspaper
 
 from datetime import datetime, timedelta
 from typing import List, Dict, Union
@@ -46,11 +47,16 @@ class QueryNewsCrawler:
         Returns
         -------
         news_data: List[Dict]
-            [{'href': str, # 뉴스 링크
-            'title': str, # 뉴스 제목
-            'text': str, # 뉴스 기사(줄임말)
-            'thumb': str} # 썸네일
-            ,...]
+            [{
+            "href": str,  # 뉴스 url
+            "date": str,  # 게재 날짜
+            "press": str,  # 언론사
+            "title": str,  # 뉴스 제목
+            "short_text": str,  # 뉴스 줄임말
+            "text": str,  # 뉴스 기사
+            "top_image": str,  # 뉴스 메인 이미지
+            "thumb": str,  # 뉴스 썸네일
+            },...]
         """
 
         # TODO: publish time 추가하기
@@ -77,10 +83,22 @@ class QueryNewsCrawler:
                 # news link & title
                 link = li.find("a", {"class": "news_tit"})
                 href, title = link["href"], link["title"]
+                # newspaper3k instance
+                try:
+                    news_instance = Article(href, language="ko")
+                    news_instance.download()
+                    news_instance.parse()
+                except:
+                    news_instance = None
+
+                # 언론사
+                press = li.find("a", {"class": "info press"}).text
                 # publish date
-                publish_date = self._get_datetime(href, li)
-                # news text
-                text = li.find("a", {"class": "api_txt_lines dsc_txt_wrap"}).text
+                publish_date = self._get_datetime(news_instance, li)
+                # news short_text
+                short_text = li.find("a", {"class": "api_txt_lines dsc_txt_wrap"}).text
+                # news text and top_image
+                text, top_iamge = self._get_article(news_instance, li)
                 # thumb nail if exist
                 thumb = ""
                 thumb_link = li.find("img", {"class": "thumb api_get"})
@@ -92,27 +110,68 @@ class QueryNewsCrawler:
                     {
                         "href": href,
                         "date": publish_date,
+                        "press": press,
                         "title": title,
+                        "short_text": short_text,
                         "text": text,
+                        "top_image": top_iamge,
                         "thumb": thumb,
                     }
                 )
             time.sleep(random.uniform(0.6, 0.9))
-
         return news_data
 
-    def _get_datetime(self, href: str, li: bs4.element.Tag):
-        try:
-            a = Article(href, language="ko")
-            a.download()
-            a.parse()
-            publish_date = a.publish_date
-        except:
-            publish_date = None
+    def _get_article(self, article: newspaper.article.Article, li: bs4.element.Tag) -> str:
+        text, top_image = None, None
+        if article is not None:
+            text = article.text
+            top_img = article.top_image
+
+        links = li.find_all("a", {"class": "info"})
+        naver_news_url = [link for link in links if link.text == "네이버뉴스"]
+        if naver_news_url:
+            naver_news_url = naver_news_url[0]
+            naver_news_url = naver_news_url["href"].replace("&amp;", "&")
+        else:
+            naver_news_url = None
+
+        if text is None and naver_news_url is not None:
+            try:
+                a = Article(naver_news_url, language="ko")
+                a.download()
+                a.parse()
+
+                text = a.text
+            except:
+                pass
+        elif top_image is None and naver_news_url is not None:
+            try:
+                a = Article(naver_news_url, language="ko")
+                a.download()
+                a.parse()
+
+                top_image = a.top_image
+            except:
+                pass
+        return text, top_image
+
+    def _get_datetime(
+        self,
+        article: newspaper.article.Article,
+        li: bs4.element.Tag,
+    ) -> datetime:
+        publish_date = None
+        if article is not None:
+            publish_date = article.publish_date
 
         if publish_date is None:
-            date = li.find("span", {"class": "info"}).text
-            date = date.split()[0]
+            date_list = li.find_all("span", {"class": "info"})
+            date = None
+            if len(date_list) > 1:
+                date = date_list[-1].text
+            else:
+                date = li.find("span", {"class": "info"}).text
+                date = date.split()[0]
 
             if "분" in date:
                 minutes = re.sub(r"[^\d+]", "", date)
@@ -124,7 +183,10 @@ class QueryNewsCrawler:
                 days = re.sub(r"[^\d+]", "", date)
                 publish_date = datetime.now() - timedelta(days=int(days))
             else:
-                publish_date = datetime.strptime(date, "%Y.%m.%d.")
+                try:
+                    publish_date = datetime.strptime(date, "%Y.%m.%d.")
+                except:
+                    pass
         return publish_date
 
 
