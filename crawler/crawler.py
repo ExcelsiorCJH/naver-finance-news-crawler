@@ -108,14 +108,15 @@ class QueryNewsCrawler:
                 # update link_title_dict
                 news_data.append(
                     {
-                        "href": href,
-                        "date": publish_date,
+                        "language": "ko",
+                        "url": href,
+                        "publishdate": publish_date,
                         "press": press,
                         "title": title,
-                        "short_text": short_text,
-                        "text": text,
-                        "top_image": top_iamge,
-                        "thumb": thumb,
+                        "shortcontent": short_text,
+                        "content": text,
+                        "topimage": top_iamge,
+                        "thumbnail": thumb,
                     }
                 )
             time.sleep(random.uniform(0.6, 0.9))
