@@ -4,3 +4,5 @@ pandas
 beautifulsoup4
 requests
 kss
+newspaper3k
+lxml-html-clean

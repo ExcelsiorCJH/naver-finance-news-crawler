@@ -16,7 +16,7 @@ from bs4 import BeautifulSoup
 from bs4.element import NavigableString
 from kss import split_sentences
 
-from tqdm import tqdm
+from tqdm.auto import tqdm
 from .utils import clean_text
 
 
@@ -215,13 +215,14 @@ class MainNewsCrawler:
         end_date: str = None,
         save_dir: str = None,
         stopwords: List[str] = None,
+        use_split_sentence: bool = False,
     ):
         self.root_url = "https://finance.naver.com"
         self.main_url = "https://finance.naver.com/news/mainnews.nhn?date="
         self.start_date = start_date
         self.end_date = end_date
         self.save_dir = save_dir
-
+        self.use_split_sentence = use_split_sentence
         # directory check
         if not os.path.exists(save_dir):
             os.mkdir(save_dir)
@@ -305,23 +306,49 @@ class MainNewsCrawler:
             cleaned article sentences
         """
         req = requests.get(url)
-        soup = BeautifulSoup(req.text, "html.parser")
+        url = re.search(r"href='([^']*)'", req.text).group(1)
+        req = requests.get(url)
+        soup = BeautifulSoup(req.text, "lxml")
+        article = soup.find("article", {"class": "_article_content"})
+        
+        text = ""
+        contents = []
+        summaries = []
+        for content in article.contents:
+            # summary 부분 처리 - media_end_summary 클래스를 포함하는 경우
+            if isinstance(content, bs4.element.Tag) and "media_end_summary" in str(content):
+                summary_texts = [
+                    text for text in content.stripped_strings if isinstance(text, str)
+                ]
+                summaries.extend(summary_texts)
+                continue  # summary는 text와 contents에 포함하지 않음
 
-        sents = soup.find("div", {"class": "articleCont"})
-        if sents:
-            sents = [sent for sent in sents if isinstance(sent, NavigableString)]
+            # 일반 텍스트 처리
+            elif isinstance(content, bs4.element.Tag):
+                content_text = content.get_text(strip=True)
+                if content_text:  # 빈 문자열이 아닌 경우만 추가
+                    text += content_text + " "  # 문자열에는 공백과 함께 추가
+                    contents.append(content_text)  # 리스트에는 개별 텍스트로 추가
+            # NavigableString인 경우
+            elif isinstance(content, NavigableString) and content.strip():
+                stripped_text = content.strip()
+                text += stripped_text + " "  # 문자열에는 공백과 함께 추가
+                contents.append(stripped_text)  # 리스트에는 개별 텍스트로 추가
+
+        origin_text = text.strip()
+        if self.use_split_sentence:
+            sentences = split_sentences(text)
+            cleaned_sentences = [clean_text(sent) for sent in sentences]
+            cleaned_sentences = [sent for sent in cleaned_sentences if sent]
+            cleaned_sentences = [
+                sent for sent in cleaned_sentences if not any(word in sent for word in self.stopwords)
+            ]
         else:
-            sents = []
-
-        origin_text = "".join(sents)
-
-        text = "".join(sents)
-        sentences = split_sentences(text)
-        cleaned_sentences = [clean_text(sent) for sent in sentences]
-        cleaned_sentences = [sent for sent in cleaned_sentences if sent]
-        cleaned_sentences = [
-            sent for sent in cleaned_sentences if not any(word in sent for word in self.stopwords)
-        ]
+            cleaned_sentences = [clean_text(sent) for sent in contents]
+            cleaned_sentences = [sent for sent in cleaned_sentences if sent]
+            cleaned_sentences = [
+                sent for sent in cleaned_sentences if not any(word in sent for word in self.stopwords)
+            ]
 
         return origin_text, cleaned_sentences
 
@@ -349,7 +376,7 @@ class MainNewsCrawler:
         for url in url_list:
             # bs4
             req = requests.get(self.root_url + url)  # HTTP GET Request
-            soup = BeautifulSoup(req.text, "html.parser")
+            soup = BeautifulSoup(req.text, "lxml")
             # 언론사
             press_list = soup.find_all("span", {"class": "press"})
             press_list = [press.text.strip() for press in press_list]
