@@ -266,7 +266,7 @@ class MainNewsCrawler:
             if self.save_dir:
                 if idx % 14 == 0:
                     start, end = crawl_range[0], crawl_range[-1]
-                    save_path = os.path.join(self.save_dir, f"news_data_{end}__{start}.pkl")
+                    save_path = os.path.join(self.save_dir, f"news_data_{end}_{start}.pkl")
                     with open(save_path, "wb") as f:
                         dill.dump(self.news_data, f)
 
@@ -277,7 +277,7 @@ class MainNewsCrawler:
 
                 if idx % 7 != 0 and idx == len(self.date_list):
                     start, end = crawl_range[0], crawl_range[-1]
-                    save_path = os.path.join(self.save_dir, f"news_data_{end}__{start}.pkl")
+                    save_path = os.path.join(self.save_dir, f"news_data_{end}_{start}.pkl")
                     with open(save_path, "wb") as f:
                         dill.dump(self.news_data, f)
                     self.total_news_data.extend(self.news_data)
