@@ -259,9 +259,10 @@ class MainNewsCrawler:
             for news in data:
                 try:
                     url = news["link"]
-                    text, cleaned_text = self.get_article(url)
-                    news["text"] = text
-                    news["cleaned_text"] = cleaned_text
+                    result = self.get_article(url)
+                    news["text"] = result["origin_text"]
+                    news["summary"] = result["summaries"]
+                    news["cleaned_text"] = result["cleaned_sentences"]
                 except:
                     continue
                 time.sleep(random.uniform(0.2, 0.6))
@@ -365,7 +366,11 @@ class MainNewsCrawler:
                 if not any(word in sent for word in self.stopwords)
             ]
 
-        return origin_text, cleaned_sentences
+        return {
+            "origin_text": origin_text,
+            "cleaned_sentences": cleaned_sentences,
+            "summaries": summaries,
+        }
 
     def get_metadata(self, url_list: List[str]) -> List[Dict]:
         """
