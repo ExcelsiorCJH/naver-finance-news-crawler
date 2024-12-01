@@ -27,10 +27,10 @@ class QueryNewsCrawler:
         # 1 ~ 4000개까지 10개 단위로 보여줌
         self.main_url = "https://search.naver.com/search.naver"
         self.query_url = "?where=news&sm=tab_pge&query="
-        self.page_url = (
-            "&sort=0&photo=0&field=0&pd=0&ds=&de=&cluster_rank=23&mynews=0&office_type=0&"
+        self.page_url = "&sort=0&photo=0&field=0&pd=0&ds=&de=&cluster_rank=23&mynews=0&office_type=0&"
+        self.page_url += (
+            "office_section_code=0&news_office_checked=&nso=so:r,p:all,a:all&start="
         )
-        self.page_url += "office_section_code=0&news_office_checked=&nso=so:r,p:all,a:all&start="
 
     def crawl_news_by_query(self, query: str, count: int = 200) -> List[Dict]:
         """
@@ -122,7 +122,9 @@ class QueryNewsCrawler:
             time.sleep(random.uniform(0.6, 0.9))
         return news_data
 
-    def _get_article(self, article: newspaper.article.Article, li: bs4.element.Tag) -> str:
+    def _get_article(
+        self, article: newspaper.article.Article, li: bs4.element.Tag
+    ) -> str:
         text, top_image = None, None
         if article is not None:
             text = article.text
@@ -255,10 +257,13 @@ class MainNewsCrawler:
             page_links = self.get_page_links(date)
             data = self.get_metadata(page_links)
             for news in data:
-                url = news["link"]
-                text, cleaned_text = self.get_article(url)
-                news["text"] = text
-                news["cleaned_text"] = cleaned_text
+                try:
+                    url = news["link"]
+                    text, cleaned_text = self.get_article(url)
+                    news["text"] = text
+                    news["cleaned_text"] = cleaned_text
+                except:
+                    continue
                 time.sleep(random.uniform(0.2, 0.6))
 
             self.news_data.extend(data)
@@ -266,7 +271,9 @@ class MainNewsCrawler:
             if self.save_dir:
                 if idx % 14 == 0:
                     start, end = crawl_range[0], crawl_range[-1]
-                    save_path = os.path.join(self.save_dir, f"news_data_{end}_{start}.pkl")
+                    save_path = os.path.join(
+                        self.save_dir, f"news_data_{end}_{start}.pkl"
+                    )
                     with open(save_path, "wb") as f:
                         dill.dump(self.news_data, f)
 
@@ -277,7 +284,9 @@ class MainNewsCrawler:
 
                 if idx % 7 != 0 and idx == len(self.date_list):
                     start, end = crawl_range[0], crawl_range[-1]
-                    save_path = os.path.join(self.save_dir, f"news_data_{end}_{start}.pkl")
+                    save_path = os.path.join(
+                        self.save_dir, f"news_data_{end}_{start}.pkl"
+                    )
                     with open(save_path, "wb") as f:
                         dill.dump(self.news_data, f)
                     self.total_news_data.extend(self.news_data)
@@ -310,13 +319,15 @@ class MainNewsCrawler:
         req = requests.get(url)
         soup = BeautifulSoup(req.text, "lxml")
         article = soup.find("article", {"class": "_article_content"})
-        
+
         text = ""
         contents = []
         summaries = []
         for content in article.contents:
             # summary 부분 처리 - media_end_summary 클래스를 포함하는 경우
-            if isinstance(content, bs4.element.Tag) and "media_end_summary" in str(content):
+            if isinstance(content, bs4.element.Tag) and "media_end_summary" in str(
+                content
+            ):
                 summary_texts = [
                     text for text in content.stripped_strings if isinstance(text, str)
                 ]
@@ -341,13 +352,17 @@ class MainNewsCrawler:
             cleaned_sentences = [clean_text(sent) for sent in sentences]
             cleaned_sentences = [sent for sent in cleaned_sentences if sent]
             cleaned_sentences = [
-                sent for sent in cleaned_sentences if not any(word in sent for word in self.stopwords)
+                sent
+                for sent in cleaned_sentences
+                if not any(word in sent for word in self.stopwords)
             ]
         else:
             cleaned_sentences = [clean_text(sent) for sent in contents]
             cleaned_sentences = [sent for sent in cleaned_sentences if sent]
             cleaned_sentences = [
-                sent for sent in cleaned_sentences if not any(word in sent for word in self.stopwords)
+                sent
+                for sent in cleaned_sentences
+                if not any(word in sent for word in self.stopwords)
             ]
 
         return origin_text, cleaned_sentences
@@ -437,7 +452,9 @@ class MainNewsCrawler:
 
         return page_links
 
-    def _date_range(self, start_date: str = "2013-08-06", end_date: str = None) -> List[str]:
+    def _date_range(
+        self, start_date: str = "2013-08-06", end_date: str = None
+    ) -> List[str]:
         """
         Date Range method
         ==================
@@ -465,7 +482,8 @@ class MainNewsCrawler:
         self.end_date = end_date
 
         date_list = [
-            start_date + timedelta(days=day) for day in range(0, (end_date - start_date).days + 1)
+            start_date + timedelta(days=day)
+            for day in range(0, (end_date - start_date).days + 1)
         ]
         date_list = [day.strftime("%Y-%m-%d") for day in date_list]
         return date_list[::-1]
